@@ -11,3 +11,5 @@ vim.expandtab = true
 
 vim.opt.smartindent = true
 vim.opt.incsearch = true
+
+vim.opt.scrolloff = 8
