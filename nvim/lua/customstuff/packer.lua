@@ -19,6 +19,16 @@ return require('packer').startup(function(use)
   }
   use('nvim-treesitter/nvim-treesitter', {run = ':TSUpdate'})
   use('theprimeagen/harpoon')
+  use('christoomey/vim-tmux-navigator', {lazy = false})
+
+  use({
+    'catppuccin/nvim',
+    as = "catppuccin",
+    config = function()
+      vim.cmd('colorscheme catppuccin')
+    end
+  })
+
   use {
 	  'VonHeikemen/lsp-zero.nvim',
 	  requires = {
