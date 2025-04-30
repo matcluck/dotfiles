@@ -19,7 +19,8 @@ for tool in "${tools[@]}"; do
 	# neovim specific configuration
 	if [ "$tool" == "nvim" ]; then
 		#sudo apt install neovim -y # fkn debian repos
-		latest=`basename $(curl -Ls -o /dev/null -w %{url_effective} https://github.com/neovim/neovim/releases/latest)`
+		sudo apt install -y curl
+    latest=`basename $(curl -Ls -o /dev/null -w %{url_effective} https://github.com/neovim/neovim/releases/latest)`
 		wget https://github.com/neovim/neovim/releases/download/$latest/nvim-linux-`uname -m`.appimage
 		chmod +x nvim-linux*
 		mv nvim-linux* ~/.local/bin/nvim
