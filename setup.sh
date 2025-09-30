@@ -12,16 +12,22 @@ tools+=("nvim")
 
 # move config for tool into .config folder
 for tool in "${tools[@]}"; do
+	echo "Installing $tool"
 	# i3 specific configuration
 	if [ "$tool" == "i3" ]; then
 		sudo apt install i3 -y
 	fi
 	# neovim specific configuration
 	if [ "$tool" == "nvim" ]; then
+		arch=`uname -m`
+		if [ "$arch" == "aarch64" ]; then
+			arch='arm64';
+		fi
+
 		#sudo apt install neovim -y # fkn debian repos
 		sudo apt install -y curl
     latest=`basename $(curl -Ls -o /dev/null -w %{url_effective} https://github.com/neovim/neovim/releases/latest)`
-		wget https://github.com/neovim/neovim/releases/download/$latest/nvim-linux-`uname -m`.appimage
+		wget https://github.com/neovim/neovim/releases/download/$latest/nvim-linux-$arch.appimage
 		chmod +x nvim-linux*
 		mv nvim-linux* ~/.local/bin/nvim
 
