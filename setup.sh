@@ -9,6 +9,7 @@ sudo apt update
 tools+=("gtk-3.0")
 tools+=("i3")
 tools+=("nvim")
+tools+=("tmux")
 
 # move config for tool into .config folder
 for tool in "${tools[@]}"; do
@@ -39,6 +40,10 @@ for tool in "${tools[@]}"; do
 			nvim
 		fi
 	fi	
+	# tmux specific configuration
+	if [ "$tool" == "tmux" ]; then
+		sudo apt install tmux -y
+	fi
 
 	# Create directory if it doesn't exist
 	if [ ! -d "$config/$tool" ]; then
