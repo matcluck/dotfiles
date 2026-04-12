@@ -1,0 +1,35 @@
+#!/bin/bash
+# Watch for VMware display resize events and apply them to X11.
+#
+# Why this exists:
+# open-vm-tools' libresolutionSet.so (the plugin that handles display resize
+# in the user-level vmtoolsd -n vmusr) detects libdrm.so.2 and backs off to
+# the resolutionKMS path. However, resolutionKMS sets resolution at the DRM
+# kernel level and the change never propagates back to the X11 server. The
+# result is that VMware window resizes are silently ignored.
+#
+# This script works around the issue by polling xrandr once per second,
+# comparing the preferred mode (which VMware updates via the vmwgfx driver)
+# against the current active mode, and applying it when they differ.
+
+OUTPUT="Virtual-1"
+LAST_MODE=""
+
+get_preferred() {
+    DISPLAY=:0 xrandr 2>/dev/null \
+        | awk '/'"$OUTPUT"' connected/{found=1; next} found && /\+/{print $1; exit}'
+}
+
+get_current() {
+    DISPLAY=:0 xrandr 2>/dev/null \
+        | awk '/'"$OUTPUT"' connected/{match($0, /[0-9]+x[0-9]+\+/); print substr($0, RSTART, RLENGTH-1); exit}'
+}
+
+while true; do
+    preferred=$(get_preferred)
+    current=$(get_current)
+    if [ -n "$preferred" ] && [ "$preferred" != "$current" ]; then
+        DISPLAY=:0 xrandr --output "$OUTPUT" --mode "$preferred"
+    fi
+    sleep 1
+done
