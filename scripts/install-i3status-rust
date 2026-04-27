@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+version="${I3STATUS_RUST_VERSION:-v0.36.1}"
+fontawesome_version="${FONTAWESOME_VERSION:-6.7.2}"
+copy_config=1
+restart_i3=1
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd -- "$script_dir/.." && pwd)
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+build_tmp=
+
+cleanup_build_tmp() {
+    if [ -n "${build_tmp:-}" ]; then
+        rm -rf "$build_tmp"
+    fi
+}
+
+trap cleanup_build_tmp EXIT
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [--version v0.36.1] [--no-config] [--no-restart]
+
+Installs i3status-rust for this dotfiles setup.
+
+Debian/Ubuntu: installs build dependencies, installs rustup if needed, then
+builds i3status-rust from the pinned upstream tag.
+
+Arch/Manjaro: installs the distro package.
+EOF
+}
+
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+run() {
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+    "$@"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --version)
+            [ "$#" -ge 2 ] || die "--version requires an argument"
+            version="$2"
+            shift 2
+            ;;
+        --no-config)
+            copy_config=0
+            shift
+            ;;
+        --no-restart|--no-reload)
+            restart_i3=0
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+[ "${version#v}" != "$version" ] || die "version must include a leading v, e.g. v0.36.1"
+[ "$EUID" -ne 0 ] || die "run this as your normal user, not with sudo"
+[ -f /etc/os-release ] || die "/etc/os-release not found"
+
+# shellcheck source=/dev/null
+. /etc/os-release
+distro="$ID"
+
+install_debian_packages() {
+    run sudo apt update
+    run sudo apt install -y \
+        ca-certificates \
+        curl \
+        git \
+        build-essential \
+        pkg-config \
+        libssl-dev \
+        libsensors-dev \
+        libpulse-dev \
+        unzip \
+        fontconfig \
+        i3status
+}
+
+install_arch_packages() {
+    run sudo pacman -S --needed --noconfirm \
+        i3status-rust \
+        curl \
+        unzip \
+        fontconfig
+}
+
+install_fontawesome6() {
+    local font_dir="$HOME/.local/share/fonts/FontAwesome6"
+    local solid="$font_dir/Font Awesome 6 Free-Solid-900.otf"
+
+    if [ -f "$solid" ]; then
+        echo "Font Awesome 6 $fontawesome_version is already installed"
+        return
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    build_tmp="$tmp"
+
+    run curl -fsSL \
+        "https://github.com/FortAwesome/Font-Awesome/releases/download/$fontawesome_version/fontawesome-free-$fontawesome_version-desktop.zip" \
+        -o "$tmp/fontawesome.zip"
+    run unzip -oq "$tmp/fontawesome.zip" -d "$tmp"
+    run mkdir -p "$font_dir"
+    run cp "$tmp/fontawesome-free-$fontawesome_version-desktop/otfs/Font Awesome 6 Free-Solid-900.otf" "$font_dir/"
+    run cp "$tmp/fontawesome-free-$fontawesome_version-desktop/otfs/Font Awesome 6 Free-Regular-400.otf" "$font_dir/"
+    run cp "$tmp/fontawesome-free-$fontawesome_version-desktop/otfs/Font Awesome 6 Brands-Regular-400.otf" "$font_dir/"
+    run fc-cache -f
+
+    cleanup_build_tmp
+    build_tmp=
+}
+
+ensure_rustup() {
+    if command -v rustup >/dev/null 2>&1; then
+        return
+    fi
+
+    run curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+    run sh /tmp/rustup-init.sh -y --profile minimal
+    rm -f /tmp/rustup-init.sh
+}
+
+load_cargo_env() {
+    # shellcheck source=/dev/null
+    [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+    export PATH="$HOME/.cargo/bin:$PATH"
+}
+
+i3status_rust_is_current() {
+    command -v i3status-rs >/dev/null 2>&1 || return 1
+
+    local installed
+    installed=$(i3status-rs --version 2>/dev/null | awk '{print $2}')
+    [ "v$installed" = "$version" ]
+}
+
+install_i3status_rust_from_source() {
+    ensure_rustup
+    load_cargo_env
+    run rustup toolchain install stable
+
+    if i3status_rust_is_current; then
+        echo "i3status-rust $version is already installed"
+        return
+    fi
+
+    build_tmp=$(mktemp -d)
+
+    run git clone --depth 1 --branch "$version" \
+        https://github.com/greshake/i3status-rust "$build_tmp/i3status-rust"
+
+    (
+        cd "$build_tmp/i3status-rust"
+        run cargo +stable install --path . --locked
+        run mkdir -p "$data_home/i3status-rust"
+        run cp -R files/. "$data_home/i3status-rust/"
+    )
+
+    cleanup_build_tmp
+    build_tmp=
+}
+
+install_dotfiles_config() {
+    [ "$copy_config" -eq 1 ] || return
+
+    run mkdir -p "$config_home/i3" "$config_home/i3status-rust"
+    run cp "$repo_root/i3/status-command" "$config_home/i3/status-command"
+    run chmod +x "$config_home/i3/status-command"
+    run cp "$repo_root/i3status-rust/config.toml" "$config_home/i3status-rust/config.toml"
+    run cp "$repo_root/i3status-rust/agent-process-counts" "$config_home/i3status-rust/agent-process-counts"
+    run chmod +x "$config_home/i3status-rust/agent-process-counts"
+
+    if [ -f "$repo_root/i3/config" ]; then
+        run cp "$repo_root/i3/config" "$config_home/i3/config"
+    fi
+}
+
+maybe_restart_i3() {
+    [ "$restart_i3" -eq 1 ] || return
+    command -v i3-msg >/dev/null 2>&1 || return
+
+    if i3-msg -t get_version >/dev/null 2>&1; then
+        run i3-msg restart
+    fi
+}
+
+case "$distro" in
+    debian|ubuntu)
+        install_debian_packages
+        install_fontawesome6
+        install_i3status_rust_from_source
+        ;;
+    arch|manjaro)
+        install_arch_packages
+        install_fontawesome6
+        ;;
+    *)
+        die "unsupported distro: $distro"
+        ;;
+esac
+
+install_dotfiles_config
+maybe_restart_i3
+
+echo "done: i3status-rust setup is installed for $distro"

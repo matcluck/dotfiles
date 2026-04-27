@@ -1,6 +1,21 @@
 [theme]
 theme = "modern"
 
+[theme.overrides]
+idle_bg = "#181825"
+idle_fg = "#cdd6f4"
+info_bg = "#181825"
+info_fg = "#89b4fa"
+good_bg = "#181825"
+good_fg = "#a6e3a1"
+warning_bg = "#181825"
+warning_fg = "#fab387"
+critical_bg = "#181825"
+critical_fg = "#f38ba8"
+separator = ""
+separator_bg = "#181825"
+separator_fg = "#181825"
+
 [icons]
 icons = "awesome6"
 
@@ -9,20 +24,44 @@ block = "focused_window"
 format = " $title.str(max_w:40) |"
 
 [[block]]
+block = "custom"
+command = "~/.config/i3status-rust/agent-process-counts"
+interval = 5
+json = true
+format = "  $text "
+
+[[block]]
 block = "net"
-device = "auto"
 interval = 2
 format = " $icon $ip "
 format_alt = " $icon ↓$speed_down ↑$speed_up "
+
+[block.theme_overrides]
+idle_fg = "#94e2d5"
+
+[block.icons_overrides]
+net_wired = ""
+net_wireless = ""
+net_vpn = ""
 
 [[block]]
 block = "cpu"
 interval = 2
 format = " $icon CPU $utilization "
 
+[block.icons_overrides]
+cpu = ""
+
 [[block]]
 block = "memory"
 format = " $icon RAM $mem_used_percents "
+
+[block.theme_overrides]
+idle_fg = "#cba6f7"
+
+[block.icons_overrides]
+memory_mem = ""
+memory_swap = ""
 
 [[block]]
 block = "disk_space"
@@ -31,11 +70,27 @@ info_type = "available"
 interval = 20
 format = " $icon $available "
 
+[block.icons_overrides]
+disk_drive = ""
+
 [[block]]
 block = "sound"
 format = " $icon $volume "
+
+[block.theme_overrides]
+idle_fg = "#a6e3a1"
+
+[block.icons_overrides]
+volume = ["", "", ""]
+volume_muted = ""
 
 [[block]]
 block = "time"
 interval = 5
 format = " $icon $timestamp.datetime(f:'%Y-%m-%d %H:%M') "
+
+[block.theme_overrides]
+idle_fg = "#bac2de"
+
+[block.icons_overrides]
+time = ""

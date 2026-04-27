@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+user=${USER:-$(id -un)}
+self=$$
+
+ps -u "$user" -o pid=,comm=,args= | awk -v self="$self" '
+    {
+        pid = $1
+        comm = $2
+        $1 = ""
+        $2 = ""
+        sub(/^[[:space:]]+/, "", $0)
+        args = $0
+
+        if (pid == self || comm ~ /^(awk|mawk|gawk|ps)$/) {
+            next
+        }
+
+        # Count one Codex per native CLI process. The Node launcher remains as
+        # a parent process, and the native process can have many worker threads.
+        if (comm == "codex" && args ~ /\/@openai\/codex\/.*\/vendor\/.*\/codex\/codex([[:space:]]|$)/) {
+            codex++
+        }
+
+        # Claude Code is a native binary. Ignore transient shell commands that
+        # merely mention ~/.claude while running a tool command.
+        if (comm == "claude" || args ~ /(^|\/)\.local\/share\/claude\/versions\/[0-9]+\.[0-9]+\.[0-9]+([[:space:]]|$)/) {
+            claude++
+        }
+    }
+    END {
+        printf "{\"state\":\"Info\",\"text\":\"Claude %d Codex %d\"}\n", claude + 0, codex + 0
+    }
+'

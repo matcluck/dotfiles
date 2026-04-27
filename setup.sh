@@ -87,6 +87,7 @@ install_i3() {
         ubuntu|debian)
             pkg_install \
                 i3 \
+                i3status \
                 dmenu \
                 alacritty \
                 dex \
@@ -107,13 +108,98 @@ install_i3() {
                 network-manager-applet \
                 pipewire-pulse \
                 picom \
-                xorg-xset \
-                i3status-rust \
-                ttf-font-awesome
+                xorg-xset
             # xsettingsd is AUR on Arch
             aur_install xsettingsd
             ;;
     esac
+}
+
+install_i3status_rust() {
+    local version="${I3STATUS_RUST_VERSION:-v0.36.1}"
+
+    case $DISTRO in
+        arch|manjaro)
+            pkg_install i3status-rust curl unzip fontconfig
+            install_fontawesome6
+            ;;
+        ubuntu|debian)
+            pkg_install \
+                ca-certificates \
+                curl \
+                git \
+                build-essential \
+                pkg-config \
+                libssl-dev \
+                libsensors-dev \
+                libpulse-dev \
+                unzip \
+                fontconfig
+
+            if ! command -v rustup >/dev/null 2>&1; then
+                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+                    sh -s -- -y --profile minimal
+            fi
+
+            # shellcheck source=/dev/null
+            [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+            export PATH="$HOME/.cargo/bin:$PATH"
+
+            install_fontawesome6
+            rustup toolchain install stable
+
+            if command -v i3status-rs >/dev/null 2>&1; then
+                local installed
+                installed=$(i3status-rs --version 2>/dev/null | awk '{print $2}')
+                if [ "v$installed" = "$version" ]; then
+                    echo "i3status-rust $version already installed"
+                    return
+                fi
+            fi
+
+            local tmp
+            tmp=$(mktemp -d)
+            git clone --depth 1 --branch "$version" \
+                https://github.com/greshake/i3status-rust "$tmp/i3status-rust"
+            (
+                cd "$tmp/i3status-rust"
+                cargo +stable install --path . --locked
+                mkdir -p "$HOME/.local/share/i3status-rust"
+                cp -R files/* "$HOME/.local/share/i3status-rust/"
+            )
+            rm -rf "$tmp"
+            ;;
+    esac
+}
+
+install_fontawesome6() {
+    local version="${FONTAWESOME_VERSION:-6.7.2}"
+    local font_dir="$HOME/.local/share/fonts/FontAwesome6"
+    local solid="$font_dir/Font Awesome 6 Free-Solid-900.otf"
+
+    if [ -f "$solid" ]; then
+        echo "Font Awesome 6 $version already installed"
+        return
+    fi
+
+    if ! command -v curl >/dev/null 2>&1 || \
+       ! command -v unzip >/dev/null 2>&1 || \
+       ! command -v fc-cache >/dev/null 2>&1; then
+        pkg_install curl unzip fontconfig
+    fi
+
+    local tmp
+    tmp=$(mktemp -d)
+    curl -fsSL \
+        "https://github.com/FortAwesome/Font-Awesome/releases/download/$version/fontawesome-free-$version-desktop.zip" \
+        -o "$tmp/fontawesome.zip"
+    unzip -oq "$tmp/fontawesome.zip" -d "$tmp"
+    mkdir -p "$font_dir"
+    cp "$tmp/fontawesome-free-$version-desktop/otfs/Font Awesome 6 Free-Solid-900.otf" "$font_dir/"
+    cp "$tmp/fontawesome-free-$version-desktop/otfs/Font Awesome 6 Free-Regular-400.otf" "$font_dir/"
+    cp "$tmp/fontawesome-free-$version-desktop/otfs/Font Awesome 6 Brands-Regular-400.otf" "$font_dir/"
+    rm -rf "$tmp"
+    fc-cache -f
 }
 
 install_nvim() {
@@ -153,8 +239,13 @@ install_tmux() {
     fi
 }
 
-# Hack Nerd Font – needed by tmux/catppuccin powerline glyphs.
+# Hack Nerd Font and color emoji fallback for tmux/alacritty.
 install_nerd_fonts() {
+    case $DISTRO in
+        ubuntu|debian) pkg_install fontconfig fonts-noto-color-emoji ;;
+        arch|manjaro)  pkg_install fontconfig noto-fonts-emoji ;;
+    esac
+
     local font_dir=~/.local/share/fonts/HackNerdFont
     if [ -d "$font_dir" ] && ls "$font_dir"/HackNerdFontMono-*.ttf >/dev/null 2>&1; then
         echo "Hack Nerd Font already installed"
@@ -179,6 +270,11 @@ echo "Detected distro: $DISTRO"
 pkg_update
 install_vmware_tools
 
+if command -v gsettings >/dev/null 2>&1 && \
+   gsettings writable org.freedesktop.ibus.panel show-icon-on-systray >/dev/null 2>&1; then
+    gsettings set org.freedesktop.ibus.panel show-icon-on-systray false
+fi
+
 # Uncomment tools you want to install/configure
 tools=()
 tools+=("gtk-3.0")
@@ -187,15 +283,17 @@ tools+=("i3status-rust")
 tools+=("nvim")
 tools+=("tmux")
 tools+=("nerd-fonts")
+tools+=("fontconfig")
 tools+=("alacritty")
 
 for tool in "${tools[@]}"; do
     echo "Installing $tool..."
     case $tool in
-        i3)         install_i3 ;;
-        nvim)       install_nvim ;;
-        tmux)       install_tmux ;;
-        nerd-fonts) install_nerd_fonts ;;
+        i3)            install_i3 ;;
+        i3status-rust) install_i3status_rust ;;
+        nvim)          install_nvim ;;
+        tmux)          install_tmux ;;
+        nerd-fonts)    install_nerd_fonts ;;
     esac
 
     # nerd-fonts has no config dir to copy from – it's install-only.
@@ -209,4 +307,7 @@ for tool in "${tools[@]}"; do
 
     echo "Placing config for $tool in $config/$tool"
     cp -R "$tool/"* "$config/$tool/"
+    [ "$tool" = "i3" ] && chmod +x "$config/i3/status-command"
+    [ "$tool" = "i3status-rust" ] && chmod +x "$config/i3status-rust/agent-process-counts"
+    [ "$tool" = "fontconfig" ] && fc-cache -f
 done

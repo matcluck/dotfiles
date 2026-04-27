@@ -6,6 +6,11 @@ selection:
   # X PRIMARY selection). Ctrl+V pastes it anywhere.
   save_to_clipboard: true
 
+window:
+  # Alacritty 0.11 cannot ask i3 for cell-sized resize increments, so spread
+  # any leftover pixels instead of leaving the whole remainder below tmux.
+  dynamic_padding: true
+
 font:
   size: 11.0
   normal:
