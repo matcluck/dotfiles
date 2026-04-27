@@ -1,0 +1,25 @@
+# Alacritty 0.11 (Debian bookworm) reads YAML. When alacritty >= 0.13 lands,
+# migrate this to alacritty.toml using `alacritty migrate`.
+
+selection:
+  # Drag-select copies straight to the system clipboard (not just the
+  # X PRIMARY selection). Ctrl+V pastes it anywhere.
+  save_to_clipboard: true
+
+font:
+  size: 11.0
+  normal:
+    family: Hack Nerd Font Mono
+    style: Regular
+  bold:
+    family: Hack Nerd Font Mono
+    style: Bold
+  italic:
+    family: Hack Nerd Font Mono
+    style: Italic
+  bold_italic:
+    family: Hack Nerd Font Mono
+    style: Bold Italic
+
+key_bindings:
+  - { key: Return, mods: Shift, chars: "\x1b\r" }

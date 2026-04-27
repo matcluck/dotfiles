@@ -57,7 +57,17 @@ install_vmware_tools() {
         ubuntu|debian) pkg_install open-vm-tools open-vm-tools-desktop ;;
         arch|manjaro)  pkg_install open-vm-tools ;;
     esac
-    sudo systemctl enable --now vmtoolsd.service
+    # Unit name varies: open-vm-tools.service on Debian/Ubuntu, vmtoolsd.service
+    # on Arch. Whichever isn't canonical is shipped as an alias, and
+    # `systemctl enable` refuses to operate on aliases – so try both.
+    local enabled=0
+    for unit in open-vm-tools.service vmtoolsd.service; do
+        if sudo systemctl enable --now "$unit" 2>/dev/null; then
+            enabled=1
+            break
+        fi
+    done
+    [ "$enabled" -eq 0 ] && echo "warn: could not enable open-vm-tools systemd unit"
 
     # Disable resolutionKMS in the system service.
     # libresolutionSet.so (user-level plugin) detects libdrm.so.2 and backs
@@ -129,6 +139,38 @@ install_nvim() {
 
 install_tmux() {
     pkg_install tmux
+
+    # tpm – plugin manager for catppuccin etc.
+    if [ ! -d ~/.tmux/plugins/tpm ]; then
+        git clone --depth 1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+    fi
+
+    # Clipboard tool for tmux copy-pipe – wl-clipboard on Wayland, xclip on X11.
+    if [ -n "${WAYLAND_DISPLAY:-}" ] || [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+        pkg_install wl-clipboard
+    else
+        pkg_install xclip
+    fi
+}
+
+# Hack Nerd Font – needed by tmux/catppuccin powerline glyphs.
+install_nerd_fonts() {
+    local font_dir=~/.local/share/fonts/HackNerdFont
+    if [ -d "$font_dir" ] && ls "$font_dir"/HackNerdFontMono-*.ttf >/dev/null 2>&1; then
+        echo "Hack Nerd Font already installed"
+        return
+    fi
+    pkg_install curl wget unzip fontconfig
+    local latest
+    latest=$(basename "$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/ryanoasis/nerd-fonts/releases/latest)")
+    echo "Installing Hack Nerd Font $latest"
+    local tmp
+    tmp=$(mktemp -d)
+    wget -q "https://github.com/ryanoasis/nerd-fonts/releases/download/$latest/Hack.zip" -O "$tmp/Hack.zip"
+    mkdir -p "$font_dir"
+    unzip -oq "$tmp/Hack.zip" -d "$font_dir"
+    rm -rf "$tmp"
+    fc-cache -f
 }
 
 # --- Main ---
@@ -144,14 +186,22 @@ tools+=("i3")
 tools+=("i3status-rust")
 tools+=("nvim")
 tools+=("tmux")
+tools+=("nerd-fonts")
+tools+=("alacritty")
 
 for tool in "${tools[@]}"; do
     echo "Installing $tool..."
     case $tool in
-        i3)   install_i3 ;;
-        nvim) install_nvim ;;
-        tmux) install_tmux ;;
+        i3)         install_i3 ;;
+        nvim)       install_nvim ;;
+        tmux)       install_tmux ;;
+        nerd-fonts) install_nerd_fonts ;;
     esac
+
+    # nerd-fonts has no config dir to copy from – it's install-only.
+    if [ "$tool" = "nerd-fonts" ]; then
+        continue
+    fi
 
     if [ ! -d "$config/$tool" ]; then
         mkdir -p "$config/$tool"
