@@ -18,7 +18,7 @@ detect_distro() {
 # --- Package Manager Abstraction ---
 pkg_update() {
     case $DISTRO in
-        ubuntu|debian) sudo apt update ;;
+        ubuntu|debian|kali) sudo apt update ;;
         arch|manjaro)  sudo pacman -Syu ;;
         *) echo "Unsupported distro: $DISTRO"; exit 1 ;;
     esac
@@ -26,7 +26,7 @@ pkg_update() {
 
 pkg_install() {
     case $DISTRO in
-        ubuntu|debian) sudo apt install -y "$@" ;;
+        ubuntu|debian|kali) sudo apt install -y "$@" ;;
         arch|manjaro)  sudo pacman -S --noconfirm "$@" ;;
         *) echo "Unsupported distro: $DISTRO"; exit 1 ;;
     esac
@@ -54,7 +54,7 @@ install_vmware_tools() {
     fi
     echo "VMware guest detected — installing open-vm-tools..."
     case $DISTRO in
-        ubuntu|debian) pkg_install open-vm-tools open-vm-tools-desktop ;;
+        ubuntu|debian|kali) pkg_install open-vm-tools open-vm-tools-desktop ;;
         arch|manjaro)  pkg_install open-vm-tools ;;
     esac
     # Unit name varies: open-vm-tools.service on Debian/Ubuntu, vmtoolsd.service
@@ -84,7 +84,7 @@ install_vmware_tools() {
 # --- Tool Installation ---
 install_i3() {
     case $DISTRO in
-        ubuntu|debian)
+        ubuntu|debian|kali)
             pkg_install \
                 i3 \
                 i3status \
@@ -123,7 +123,7 @@ install_i3status_rust() {
             pkg_install i3status-rust curl unzip fontconfig
             install_fontawesome6
             ;;
-        ubuntu|debian)
+        ubuntu|debian|kali)
             pkg_install \
                 ca-certificates \
                 curl \
@@ -207,7 +207,7 @@ install_nvim() {
         arch|manjaro)
             pkg_install neovim
             ;;
-        ubuntu|debian)
+        ubuntu|debian|kali)
             # Debian/Ubuntu repos ship very old Neovim, so pull the latest appimage
             local arch
             arch=$(uname -m)
@@ -242,7 +242,7 @@ install_tmux() {
 # Hack Nerd Font and color emoji fallback for tmux/alacritty.
 install_nerd_fonts() {
     case $DISTRO in
-        ubuntu|debian) pkg_install fontconfig fonts-noto-color-emoji ;;
+        ubuntu|debian|kali) pkg_install fontconfig fonts-noto-color-emoji ;;
         arch|manjaro)  pkg_install fontconfig noto-fonts-emoji ;;
     esac
 
